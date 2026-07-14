@@ -42,6 +42,9 @@ create table if not exists public.skills (
   created_at timestamptz not null default timezone('utc', now())
 );
 
+create unique index if not exists skills_user_id_name_lower_idx
+  on public.skills (user_id, lower(name));
+
 grant usage on schema public to anon, authenticated;
 
 alter table public.profile enable row level security;
