@@ -19,13 +19,17 @@ function readConfig(name) {
 function getSettings() {
   const url = readConfig('supabase-url').replace(/\/$/, '');
   const anonKey = readConfig('supabase-anon-key');
-  const sessionStorageKey = `cv-harvard.supabase.session.${url}`;
+  const localStorageKey = `supabase.session.${url}`;
 
-  return { url, anonKey, sessionStorageKey };
+  return { url, anonKey, localStorageKey };
+}
+
+function getStorage() {
+  return window.localStorage;
 }
 
 function readSession(key) {
-  const raw = window.localStorage.getItem(key);
+  const raw = getStorage().getItem(key);
   if (!raw) {
     return null;
   }
@@ -33,18 +37,28 @@ function readSession(key) {
   try {
     return JSON.parse(raw);
   } catch {
-    window.localStorage.removeItem(key);
+    getStorage().removeItem(key);
     return null;
   }
 }
 
 function writeSession(key, value) {
   if (!value) {
-    window.localStorage.removeItem(key);
+    getStorage().removeItem(key);
     return;
   }
 
-  window.localStorage.setItem(key, JSON.stringify(value));
+  getStorage().setItem(key, JSON.stringify(value));
+}
+
+async function parseJsonResponse(response) {
+  try {
+    return await response.json();
+  } catch {
+    return {
+      message: 'La respuesta de Supabase Auth no se pudo interpretar.',
+    };
+  }
 }
 
 export function getSupabaseClient() {
@@ -53,8 +67,13 @@ export function getSupabaseClient() {
   return {
     auth: {
       async getSession() {
-        const session = readSession(settings.sessionStorageKey);
+        const session = readSession(settings.localStorageKey);
         if (!session?.access_token) {
+          return { data: { session: null } };
+        }
+
+        if (typeof session.expires_at === 'number' && Date.now() >= session.expires_at * 1000) {
+          writeSession(settings.localStorageKey, null);
           return { data: { session: null } };
         }
 
@@ -66,7 +85,7 @@ export function getSupabaseClient() {
         });
 
         if (!response.ok) {
-          writeSession(settings.sessionStorageKey, null);
+          writeSession(settings.localStorageKey, null);
           return { data: { session: null } };
         }
 
@@ -91,22 +110,26 @@ export function getSupabaseClient() {
           };
         }
 
-        const data = await response.json().catch(() => ({}));
+        const data = await parseJsonResponse(response);
         if (!response.ok) {
           return {
             error: {
-              message: data.error_description || data.msg || 'No se pudo iniciar sesión.',
+              message:
+                data.error_description ||
+                data.msg ||
+                data.message ||
+                'No se pudo iniciar sesión.',
             },
             data: { session: null },
           };
         }
 
-        writeSession(settings.sessionStorageKey, data);
+        writeSession(settings.localStorageKey, data);
         return { data: { session: data }, error: null };
       },
 
       async signOut() {
-        writeSession(settings.sessionStorageKey, null);
+        writeSession(settings.localStorageKey, null);
         return { error: null };
       },
     },
