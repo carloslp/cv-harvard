@@ -56,7 +56,7 @@ function writeSession(key, value) {
 }
 
 function isExpired(session) {
-  return typeof session.expires_at === 'number' && nowInSeconds() > session.expires_at;
+  return typeof session.expires_at === 'number' && nowInSeconds() >= session.expires_at;
 }
 
 function wasRecentlyValidated(session) {
@@ -64,6 +64,32 @@ function wasRecentlyValidated(session) {
     typeof session.validated_at === 'number' &&
     nowInSeconds() - session.validated_at < 60
   );
+}
+
+function normalizeSession(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const expiresAt =
+    typeof payload.expires_at === 'number'
+      ? payload.expires_at
+      : typeof payload.expires_in === 'number'
+      ? nowInSeconds() + payload.expires_in
+      : null;
+
+  if (typeof payload.access_token !== 'string' || !payload.access_token) {
+    return null;
+  }
+
+  return {
+    access_token: payload.access_token,
+    refresh_token: payload.refresh_token || null,
+    token_type: payload.token_type || null,
+    expires_at: expiresAt,
+    user: payload.user || null,
+    validated_at: nowInSeconds(),
+  };
 }
 
 async function parseJsonResponse(response) {
@@ -149,8 +175,16 @@ export function getSupabaseClient() {
           };
         }
 
-        writeSession(settings.localStorageKey, data);
-        return { data: { session: data }, error: null };
+        const session = normalizeSession(data);
+        if (!session) {
+          return {
+            error: { message: 'La sesión devuelta por Supabase Auth no es válida.' },
+            data: { session: null },
+          };
+        }
+
+        writeSession(settings.localStorageKey, session);
+        return { data: { session }, error: null };
       },
 
       async signOut() {
