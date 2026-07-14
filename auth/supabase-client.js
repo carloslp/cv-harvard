@@ -66,17 +66,24 @@ function wasRecentlyValidated(session) {
   );
 }
 
+function calculateExpirationTime(payload) {
+  if (typeof payload.expires_at === 'number') {
+    return payload.expires_at;
+  }
+
+  if (typeof payload.expires_in === 'number') {
+    return nowInSeconds() + payload.expires_in;
+  }
+
+  return null;
+}
+
 function normalizeSession(payload) {
   if (!payload || typeof payload !== 'object') {
     return null;
   }
 
-  const expiresAt =
-    typeof payload.expires_at === 'number'
-      ? payload.expires_at
-      : typeof payload.expires_in === 'number'
-      ? nowInSeconds() + payload.expires_in
-      : null;
+  const expiresAt = calculateExpirationTime(payload);
 
   if (typeof payload.access_token !== 'string' || !payload.access_token) {
     return null;
@@ -167,7 +174,6 @@ export function getSupabaseClient() {
             error: {
               message:
                 data.error_description ||
-                data.msg ||
                 data.message ||
                 'No se pudo iniciar sesión.',
             },
