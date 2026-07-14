@@ -1,5 +1,3 @@
-create extension if not exists pgcrypto;
-
 grant usage on schema public to anon, authenticated;
 
 create table if not exists public.profile (
@@ -50,11 +48,6 @@ alter table public.profile enable row level security;
 alter table public.education enable row level security;
 alter table public.experience enable row level security;
 alter table public.skills enable row level security;
-
-revoke all on public.profile from anon, authenticated;
-revoke all on public.education from anon, authenticated;
-revoke all on public.experience from anon, authenticated;
-revoke all on public.skills from anon, authenticated;
 
 grant select on public.profile to anon, authenticated;
 grant select on public.education to anon, authenticated;
