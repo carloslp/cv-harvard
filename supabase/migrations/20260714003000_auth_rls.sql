@@ -1,5 +1,3 @@
-grant usage on schema public to anon, authenticated;
-
 create table if not exists public.profile (
   user_id uuid primary key references auth.users (id) on delete cascade,
   full_name text,
@@ -7,8 +5,7 @@ create table if not exists public.profile (
   summary text,
   location text,
   email text,
-  created_at timestamptz not null default timezone('utc', now()),
-  updated_at timestamptz not null default timezone('utc', now())
+  created_at timestamptz not null default timezone('utc', now())
 );
 
 create table if not exists public.education (
@@ -20,7 +17,8 @@ create table if not exists public.education (
   start_date date,
   end_date date,
   description text,
-  created_at timestamptz not null default timezone('utc', now())
+  created_at timestamptz not null default timezone('utc', now()),
+  check (start_date is null or end_date is null or end_date >= start_date)
 );
 
 create table if not exists public.experience (
@@ -31,7 +29,8 @@ create table if not exists public.experience (
   start_date date,
   end_date date,
   description text,
-  created_at timestamptz not null default timezone('utc', now())
+  created_at timestamptz not null default timezone('utc', now()),
+  check (start_date is null or end_date is null or end_date >= start_date)
 );
 
 create table if not exists public.skills (
@@ -40,9 +39,10 @@ create table if not exists public.skills (
   name text not null,
   category text,
   proficiency text,
-  created_at timestamptz not null default timezone('utc', now()),
-  unique (user_id, name)
+  created_at timestamptz not null default timezone('utc', now())
 );
+
+grant usage on schema public to anon, authenticated;
 
 alter table public.profile enable row level security;
 alter table public.education enable row level security;
