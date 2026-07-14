@@ -28,6 +28,10 @@ function getStorage() {
   return window.localStorage;
 }
 
+function nowInSeconds() {
+  return Math.floor(Date.now() / 1000);
+}
+
 function readSession(key) {
   const raw = getStorage().getItem(key);
   if (!raw) {
@@ -51,6 +55,17 @@ function writeSession(key, value) {
   getStorage().setItem(key, JSON.stringify(value));
 }
 
+function isExpired(session) {
+  return typeof session.expires_at === 'number' && nowInSeconds() > session.expires_at;
+}
+
+function wasRecentlyValidated(session) {
+  return (
+    typeof session.validated_at === 'number' &&
+    nowInSeconds() - session.validated_at < 60
+  );
+}
+
 async function parseJsonResponse(response) {
   try {
     return await response.json();
@@ -72,15 +87,19 @@ export function getSupabaseClient() {
           return { data: { session: null } };
         }
 
-        if (typeof session.expires_at === 'number' && Date.now() >= session.expires_at * 1000) {
+        if (isExpired(session)) {
           writeSession(settings.localStorageKey, null);
           return { data: { session: null } };
+        }
+
+        if (wasRecentlyValidated(session)) {
+          return { data: { session } };
         }
 
         const response = await fetch(`${settings.url}/auth/v1/user`, {
           headers: {
             apikey: settings.anonKey,
-            Authorization: 'Bearer ' + session.access_token,
+            Authorization: ['Bearer', session.access_token].join(' '),
           },
         });
 
@@ -89,7 +108,13 @@ export function getSupabaseClient() {
           return { data: { session: null } };
         }
 
-        return { data: { session } };
+        const validatedSession = {
+          ...session,
+          validated_at: nowInSeconds(),
+        };
+        writeSession(settings.localStorageKey, validatedSession);
+
+        return { data: { session: validatedSession } };
       },
 
       async signInWithPassword({ email, password }) {

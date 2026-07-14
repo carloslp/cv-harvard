@@ -47,11 +47,16 @@
         errorElement.textContent = '';
 
         const formData = new FormData(form);
-        const email = String(formData.get('email') || '');
-        const password = String(formData.get('password') || '');
+        const email = String(formData.get('email') || '').trim();
+        const password = String(formData.get('password') || '').trim();
 
         if (!supabase) {
           errorElement.textContent = 'Configura Supabase para iniciar sesión.';
+          return;
+        }
+
+        if (!email || !password) {
+          errorElement.textContent = 'Correo y contraseña son obligatorios.';
           return;
         }
 
