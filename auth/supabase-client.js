@@ -109,10 +109,89 @@ async function parseJsonResponse(response) {
   }
 }
 
+function createTableQuery(settings, token, table) {
+  const authHeader = ['Bearer', token].join(' ');
+  const baseHeaders = {
+    apikey: settings.anonKey,
+    Authorization: authHeader,
+    'Content-Type': 'application/json',
+  };
+  const filters = [];
+
+  const query = {
+    eq(column, value) {
+      filters.push(`${encodeURIComponent(column)}=eq.${encodeURIComponent(value)}`);
+      return query;
+    },
+
+    async select(columns) {
+      const cols = columns || '*';
+      let url = `${settings.url}/rest/v1/${table}?select=${encodeURIComponent(cols)}`;
+      if (filters.length > 0) {
+        url += '&' + filters.join('&');
+      }
+      let response;
+      try {
+        response = await fetch(url, { headers: baseHeaders });
+      } catch {
+        return { data: null, error: { message: 'No se pudo conectar con Supabase.' } };
+      }
+
+      let body;
+      try {
+        body = await response.json();
+      } catch {
+        return { data: null, error: { message: 'Respuesta inesperada de Supabase.' } };
+      }
+
+      if (!response.ok) {
+        return { data: null, error: body };
+      }
+      return { data: body, error: null };
+    },
+
+    async upsert(row) {
+      let response;
+      try {
+        response = await fetch(`${settings.url}/rest/v1/${table}`, {
+          method: 'POST',
+          headers: {
+            ...baseHeaders,
+            Prefer: 'resolution=merge-duplicates,return=representation',
+          },
+          body: JSON.stringify(row),
+        });
+      } catch {
+        return { data: null, error: { message: 'No se pudo conectar con Supabase.' } };
+      }
+
+      let body;
+      try {
+        body = await response.json();
+      } catch {
+        return { data: null, error: { message: 'Respuesta inesperada de Supabase.' } };
+      }
+
+      if (!response.ok) {
+        return { data: null, error: body };
+      }
+      return { data: Array.isArray(body) ? body[0] : body, error: null };
+    },
+  };
+
+  return query;
+}
+
 export function getSupabaseClient() {
   const settings = getSettings();
 
   return {
+    from(table) {
+      const session = readSession(settings.localStorageKey);
+      const token = session?.access_token || settings.anonKey;
+      return createTableQuery(settings, token, table);
+    },
+
     auth: {
       async getSession() {
         const session = readSession(settings.localStorageKey);

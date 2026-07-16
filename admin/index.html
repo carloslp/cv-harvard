@@ -11,12 +11,46 @@
     <main>
       <h1>Panel de Administración</h1>
       <button id="signout" type="button">Cerrar sesión</button>
+
+      <section id="profile-section">
+        <h2>Información de Contacto</h2>
+        <form id="profile-form" novalidate>
+          <div>
+            <label for="full_name">Nombre completo *</label>
+            <input id="full_name" name="full_name" type="text" required />
+          </div>
+
+          <div>
+            <label for="email">Correo electrónico *</label>
+            <input id="email" name="email" type="email" required />
+          </div>
+
+          <div>
+            <label for="phone">Teléfono</label>
+            <input id="phone" name="phone" type="tel" />
+          </div>
+
+          <div>
+            <label for="linkedin">LinkedIn</label>
+            <input id="linkedin" name="linkedin" type="url" />
+          </div>
+
+          <div>
+            <label for="location">Ubicación</label>
+            <input id="location" name="location" type="text" />
+          </div>
+
+          <button type="submit">Guardar</button>
+        </form>
+        <p id="profile-message" role="status"></p>
+      </section>
     </main>
 
     <script type="module">
       import { getSupabaseClient } from '../auth/supabase-client.js';
 
       let supabase;
+      let currentUserId;
 
       try {
         supabase = getSupabaseClient();
@@ -26,6 +60,8 @@
 
         if (!session) {
           window.location.replace('/login');
+        } else {
+          currentUserId = session.user?.id;
         }
       } catch {
         window.location.replace('/login');
@@ -39,6 +75,57 @@
 
         await supabase.auth.signOut();
         window.location.replace('/login');
+      });
+
+      async function loadProfile() {
+        if (!supabase || !currentUserId) return;
+
+        const { data, error } = await supabase.from('profile').eq('user_id', currentUserId).select('*');
+        if (error || !data || data.length === 0) return;
+
+        const profile = data[0];
+        const form = document.getElementById('profile-form');
+        for (const field of ['full_name', 'email', 'phone', 'linkedin', 'location']) {
+          const input = form.elements[field];
+          if (input && profile[field] != null) {
+            input.value = profile[field];
+          }
+        }
+      }
+
+      await loadProfile();
+
+      document.getElementById('profile-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const messageEl = document.getElementById('profile-message');
+        messageEl.textContent = '';
+
+        const form = event.target;
+        const fullName = form.elements['full_name'].value.trim();
+        const email = form.elements['email'].value.trim();
+
+        if (!fullName || !email) {
+          messageEl.textContent = 'Nombre completo y correo electrónico son obligatorios.';
+          return;
+        }
+
+        const row = {
+          user_id: currentUserId,
+          full_name: fullName,
+          email,
+          phone: form.elements['phone'].value.trim() || null,
+          linkedin: form.elements['linkedin'].value.trim() || null,
+          location: form.elements['location'].value.trim() || null,
+        };
+
+        const { error } = await supabase.from('profile').upsert(row);
+        if (error) {
+          messageEl.textContent = error.message || 'Error al guardar los datos.';
+          return;
+        }
+
+        messageEl.textContent = 'Información de contacto actualizada correctamente.';
       });
     </script>
   </body>
