@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="supabase-url" content="" />
+    <meta name="supabase-anon-key" content="" />
+    <title>Admin</title>
+  </head>
+  <body>
+    <main>
+      <h1>Panel de Administración</h1>
+      <button id="signout" type="button">Cerrar sesión</button>
+    </main>
+
+    <script type="module">
+      import { getSupabaseClient } from '../auth/supabase-client.js';
+
+      let supabase;
+
+      try {
+        supabase = getSupabaseClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          window.location.replace('/login');
+        }
+      } catch {
+        window.location.replace('/login');
+      }
+
+      document.getElementById('signout').addEventListener('click', async () => {
+        if (!supabase) {
+          window.location.replace('/login');
+          return;
+        }
+
+        await supabase.auth.signOut();
+        window.location.replace('/login');
+      });
+    </script>
+  </body>
+</html>
